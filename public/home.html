@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>存取款管理系统</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,sans-serif; max-width:500px; margin:0 auto; padding:20px; background:#f0f2f5; }
+  .header { text-align:center; padding:30px 20px; background:linear-gradient(135deg,#07c160,#0052d9); color:white; border-radius:16px; margin-bottom:20px; }
+  .header h1 { font-size:22px; margin-bottom:8px; }
+  .header p { font-size:13px; opacity:0.9; }
+  .nav { display:flex; flex-direction:column; gap:12px; }
+  .nav-item { background:white; border-radius:12px; padding:20px; display:flex; align-items:center; gap:16px; text-decoration:none; color:#1f2329; box-shadow:0 1px 3px rgba(0,0,0,0.06); transition:all .2s; }
+  .nav-item:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,0.1); }
+  .nav-icon { font-size:32px; }
+  .nav-text h3 { font-size:16px; margin-bottom:4px; }
+  .nav-text p { font-size:12px; color:#86909c; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📋 存取款管理系统</h1>
+  <p>无审批版 · 提交即生效 · 安全审计留痕</p>
+</div>
+
+<div class="nav">
+  <a class="nav-item" href="/submit.html">
+    <div class="nav-icon">📝</div>
+    <div class="nav-text">
+      <h3>存取款申请</h3>
+      <p>填写存款/取款申请，提交即生成二维码</p>
+    </div>
+  </a>
+
+  <a class="nav-item" href="/index.html">
+    <div class="nav-icon">📷</div>
+    <div class="nav-text">
+      <h3>扫码核销</h3>
+      <p>扫描凭证二维码，验证后核销</p>
+    </div>
+  </a>
+
+  <a class="nav-item" href="/balance.html">
+    <div class="nav-icon">📊</div>
+    <div class="nav-text">
+      <h3>余额查询</h3>
+      <p>查看各网点存取款余额和交易明细</p>
+    </div>
+  </a>
+
+  <a class="nav-item" href="/api/reconcile/daily">
+    <div class="nav-icon">📋</div>
+    <div class="nav-text">
+      <h3>每日对账</h3>
+      <p>查看当日存取款明细和统计</p>
+    </div>
+  </a>
+
+  <a class="nav-item" href="/api/security/verify-chain">
+    <div class="nav-icon">🔒</div>
+    <div class="nav-text">
+      <h3>完整性校验</h3>
+      <p>检查数据链式哈希完整性</p>
+    </div>
+  </a>
+
+  <a class="nav-item" href="/api/health">
+    <div class="nav-icon">💚</div>
+    <div class="nav-text">
+      <h3>系统状态</h3>
+      <p>检查服务是否正常运行</p>
+    </div>
+  </a>
+</div>
+
+</body>
+</html>
