@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>存取款申请</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,sans-serif; max-width:500px; margin:0 auto; padding:20px; background:#f5f5f5; }
+  .card { background:white; border-radius:12px; padding:20px; margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+  h2 { color:#07c160; text-align:center; margin-bottom:16px; }
+  .type-selector { display:flex; gap:12px; margin-bottom:16px; }
+  .type-btn { flex:1; padding:14px; border:2px solid #e5e6eb; border-radius:10px; background:white; font-size:16px; cursor:pointer; transition:all .2s; }
+  .type-btn.active.withdraw { border-color:#ff7d00; background:#fff7e8; color:#ff7d00; }
+  .type-btn.active.deposit { border-color:#0052d9; background:#e8f3ff; color:#0052d9; }
+  input, select, textarea { width:100%; padding:12px; border:1px solid #ddd; border-radius:8px; font-size:15px; margin-bottom:10px; }
+  .btn { display:block; width:100%; padding:14px; border:none; border-radius:8px; font-size:16px; cursor:pointer; margin-top:12px; }
+  .btn-primary { background:#07c160; color:white; }
+  .btn-print { background:#0052d9; color:white; }
+  .btn-secondary { background:#f0f0f0; }
+  .hidden { display:none; }
+  .qr-result { text-align:center; }
+  .qr-result img { width:200px; height:200px; margin:12px auto; display:block; }
+  .info-row { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #f0f0f0; }
+  .info-label { color:#999; }
+  .info-value { font-weight:600; }
+  .amount-display { font-size:28px; font-weight:bold; color:#d92222; text-align:center; margin:8px 0; }
+  p.hint { font-size:12px; color:#999; text-align:center; margin-top:8px; }
+
+  .balance-box { background:linear-gradient(135deg,#f0fff5,#e8f3ff); border-radius:10px; padding:16px; margin-bottom:12px; }
+  .balance-title { font-size:13px; color:#86909c; margin-bottom:8px; }
+  .balance-main { display:flex; justify-content:space-between; align-items:center; }
+  .balance-label { font-size:14px; color:#4e5969; }
+  .balance-value { font-size:28px; font-weight:bold; }
+  .balance-value.positive { color:#07c160; }
+  .balance-value.negative { color:#f53f3f; }
+  .balance-detail { display:flex; justify-content:space-between; margin-top:8px; font-size:12px; color:#86909c; }
+  .balance-after { background:#fff7e8; border-radius:8px; padding:10px; margin-top:8px; text-align:center; }
+  .balance-after .label { font-size:13px; color:#ff7d00; }
+  .balance-after .value { font-size:22px; font-weight:bold; color:#ff7d00; margin-top:4px; }
+  .balance-warning { background:#ffece8; border:1px solid #ffccc7; border-radius:8px; padding:10px; margin-top:8px; text-align:center; color:#f53f3f; font-size:13px; }
+  .balance-ok { background:#f0fff5; border:1px solid #b7e8c4; border-radius:8px; padding:10px; margin-top:8px; text-align:center; color:#06ad56; font-size:13px; }
+</style>
+</head>
+<body>
+
+<h2>📋 存取款申请</h2>
+
+<div class="card">
+  <div class="type-selector">
+    <button class="type-btn withdraw active" onclick="selectType('withdraw')">💵 取款</button>
+    <button class="type-btn deposit" onclick="selectType('deposit')">💰 存款</button>
+  </div>
+
+  <input type="text" id="submitterName" placeholder="您的姓名" value="">
+  <input type="text" id="submitterDept" placeholder="所在部门（选填）" value="">
+  <input type="number" id="amount" placeholder="金额（元）" step="0.01" oninput="updateBalancePreview()">
+  <input type="text" id="counterpartyName" placeholder="对方户名（收款人/存款人）">
+  <input type="text" id="counterpartyMobile" placeholder="对方手机号">
+  <div id="accountField" class="hidden">
+    <input type="text" id="counterpartyAccount" placeholder="存款账号">
+  </div>
+  <select id="targetBranch" onchange="fetchBalance()">
+    <option value="">选择目标网点</option>
+    <option value="总部">总部</option>
+    <option value="上海分公司">上海分公司</option>
+    <option value="广州分公司">广州分公司</option>
+    <option value="深圳分公司">深圳分公司</option>
+  </select>
+  <input type="text" id="purpose" placeholder="用途/来源">
+  <textarea id="remark" placeholder="备注（选填）" rows="2"></textarea>
+
+  <div id="balancePreview" class="hidden"></div>
+
+  <button class="btn btn-primary" onclick="submitOrder()">提交并生成凭证</button>
+  <p class="hint">提交后立即生成二维码，可直接打印</p>
+</div>
+
+<div class="card hidden" id="resultCard">
+  <h2 style="color:#07c160;">✅ 单据已生成</h2>
+  <div class="qr-result">
+    <div class="info-row"><span class="info-label">单号</span><span class="info-value" id="rOrderNo"></span></div>
+    <div class="info-row"><span class="info-label">金额</span><span class="amount-display" id="rAmount" style="font-size:16px;"></span></div>
+    <div id="rBalanceBox" class="hidden">
+      <div class="balance-box" style="margin-top:12px;">
+        <div class="balance-title">本次取款后余额</div>
+        <div class="balance-main">
+          <span class="balance-label">可用余额</span>
+          <span class="balance-value" id="rAfterBalance"></span>
+        </div>
+        <div class="balance-detail">
+          <span>总存款：¥<span id="rTotalDeposit">0</span></span>
+          <span>总取款：¥<span id="rTotalWithdraw">0</span></span>
+        </div>
+      </div>
+    </div>
+    <img id="qrImage" alt="二维码" />
+    <button class="btn btn-print" onclick="window.print()">🖨️ 打印凭证</button>
+    <button class="btn btn-secondary" onclick="reset()">继续申请下一单</button>
+    <a href="/balance.html" class="btn btn-secondary" style="text-align:center;text-decoration:none;color:#333;">📊 查看余额详情</a>
+  </div>
+</div>
+
+<script>
+  const API = location.origin;
+  let currentType = 'withdraw';
+  let cachedBalance = null;
+
+  function selectType(type) {
+    currentType = type;
+    document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.' + type).classList.add('active');
+    document.getElementById('accountField').classList.toggle('hidden', type !== 'deposit');
+    updateBalancePreview();
+  }
+
+  async function fetchBalance() {
+    const branch = document.getElementById('targetBranch').value;
+    if (!branch) { cachedBalance = null; updateBalancePreview(); return; }
+    try {
+      const res = await fetch(API + '/api/balance?branch=' + encodeURIComponent(branch));
+      const data = await res.json();
+      if (data.success) {
+        cachedBalance = data.balance;
+        updateBalancePreview();
+      }
+    } catch (e) { console.log('余额查询失败', e); }
+  }
+
+  function updateBalancePreview() {
+    const preview = document.getElementById('balancePreview');
+    if (currentType !== 'withdraw' || !cachedBalance) {
+      preview.classList.add('hidden');
+      return;
+    }
+    const amount = parseFloat(document.getElementById('amount').value) || 0;
+    const after = cachedBalance.availableBalance - amount;
+    const isWarning = after < 0;
+
+    preview.classList.remove('hidden');
+    preview.innerHTML = `
+      <div class="balance-box">
+        <div class="balance-title">📊 ${document.getElementById('targetBranch').value} 余额信息</div>
+        <div class="balance-main">
+          <span class="balance-label">当前可用余额</span>
+          <span class="balance-value ${cachedBalance.availableBalance >= 0 ? 'positive' : 'negative'}">¥${cachedBalance.availableBalance.toFixed(2)}</span>
+        </div>
+        <div class="balance-detail">
+          <span>累计存款：¥${cachedBalance.totalDeposited.toFixed(2)}</span>
+          <span>累计取款：¥${cachedBalance.totalWithdrawn.toFixed(2)}</span>
+        </div>
+        <div class="balance-detail">
+          <span>待核销取款：¥${cachedBalance.pendingWithdraw.toFixed(2)}</span>
+          <span>待核销存款：¥${cachedBalance.pendingDeposit.toFixed(2)}</span>
+        </div>
+        ${amount > 0 ? `
+          <div class="balance-after">
+            <div class="label">本次取款 ¥${amount.toFixed(2)} 后余额</div>
+            <div class="value" style="color:${isWarning ? '#f53f3f' : '#06ad56'}">¥${after.toFixed(2)}</div>
+          </div>
+          ${isWarning
+            ? '<div class="balance-warning">⚠️ 余额不足！取款后将为负数，请确认是否继续</div>'
+            : '<div class="balance-ok">✅ 余额充足，可以取款</div>'
+          }
+        ` : ''}
+      </div>
+    `;
+  }
+
+  async function submitOrder() {
+    const submitterName = document.getElementById('submitterName').value.trim();
+    if (!submitterName) { alert('请填写姓名'); return; }
+    const amount = parseFloat(document.getElementById('amount').value);
+    if (!amount || amount <= 0) { alert('请填写有效金额'); return; }
+    const counterpartyName = document.getElementById('counterpartyName').value.trim();
+    if (!counterpartyName) { alert('请填写对方户名'); return; }
+    const targetBranch = document.getElementById('targetBranch').value;
+    if (!targetBranch) { alert('请选择目标网点'); return; }
+
+    if (currentType === 'withdraw' && cachedBalance && amount > cachedBalance.availableBalance) {
+      if (!confirm(`⚠️ 该网点可用余额为 ¥${cachedBalance.availableBalance.toFixed(2)}，取款金额 ¥${amount.toFixed(2)} 超出余额。\n\n确定要继续提交吗？`)) return;
+    }
+
+    const res = await fetch(API + '/api/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        bizType: currentType,
+        submitterId: submitterName,
+        submitterName,
+        submitterDept: document.getElementById('submitterDept').value,
+        amount,
+        counterpartyName,
+        counterpartyMobile: document.getElementById('counterpartyMobile').value,
+        counterpartyAccount: document.getElementById('counterpartyAccount')?.value,
+        targetBranch,
+        purpose: document.getElementById('purpose').value,
+        remark: document.getElementById('remark').value,
+        deviceInfo: navigator.userAgent
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      document.querySelector('.card').classList.add('hidden');
+      document.getElementById('resultCard').classList.remove('hidden');
+      document.getElementById('rOrderNo').textContent = data.orderNo;
+      document.getElementById('rAmount').textContent = '¥' + amount;
+
+      if (data.balance) {
+        const rBalanceBox = document.getElementById('rBalanceBox');
+        rBalanceBox.classList.remove('hidden');
+        const afterEl = document.getElementById('rAfterBalance');
+        afterEl.textContent = '¥' + data.balance.afterWithdraw.toFixed(2);
+        afterEl.className = 'balance-value ' + (data.balance.afterWithdraw >= 0 ? 'positive' : 'negative');
+        document.getElementById('rTotalDeposit').textContent = data.balance.totalDeposited.toFixed(2);
+        document.getElementById('rTotalWithdraw').textContent = data.balance.totalWithdrawn.toFixed(2);
+      }
+
+      document.getElementById('qrImage').src = data.qrImage;
+    } else {
+      alert(data.msg);
+    }
+  }
+
+  function reset() {
+    document.getElementById('resultCard').classList.add('hidden');
+    document.querySelector('.card').classList.remove('hidden');
+    document.getElementById('amount').value = '';
+    document.getElementById('counterpartyName').value = '';
+    document.getElementById('counterpartyMobile').value = '';
+    document.getElementById('counterpartyAccount').value = '';
+    document.getElementById('purpose').value = '';
+    document.getElementById('remark').value = '';
+    updateBalancePreview();
+  }
+</script>
+</body>
+</html>
