@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>余额查询</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,sans-serif; max-width:500px; margin:0 auto; padding:20px; background:#f5f5f5; }
+  .card { background:white; border-radius:12px; padding:20px; margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+  h2 { color:#07c160; text-align:center; margin-bottom:16px; }
+  select, input { width:100%; padding:12px; border:1px solid #ddd; border-radius:8px; font-size:15px; margin-bottom:10px; }
+  .btn { display:block; width:100%; padding:14px; border:none; border-radius:8px; font-size:16px; cursor:pointer; background:#07c160; color:white; }
+  .btn-secondary { background:#f0f0f0; color:#333; text-decoration:none; text-align:center; }
+  .hidden { display:none; }
+  .balance-hero { text-align:center; padding:24px 16px; background:linear-gradient(135deg,#07c160,#0052d9); color:white; border-radius:12px; margin-bottom:16px; }
+  .balance-hero .label { font-size:14px; opacity:0.9; }
+  .balance-hero .value { font-size:36px; font-weight:bold; margin:8px 0; }
+  .balance-hero .sub { font-size:12px; opacity:0.8; }
+  .stat-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; }
+  .stat-item { background:#f7f8fa; border-radius:10px; padding:14px; text-align:center; }
+  .stat-item .stat-label { font-size:12px; color:#86909c; margin-bottom:4px; }
+  .stat-item .stat-value { font-size:18px; font-weight:bold; }
+  .stat-item.deposit .stat-value { color:#0052d9; }
+  .stat-item.withdraw .stat-value { color:#ff7d00; }
+  .stat-item.pending .stat-value { color:#86909c; }
+  .stat-item.available .stat-value { color:#07c160; }
+  .table-row { display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid #f0f0f0; font-size:14px; }
+  .table-row .col-label { color:#86909c; }
+  .table-row .col-value { font-weight:600; }
+  .tag { display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:500; }
+  .tag-deposit { background:#e8f3ff; color:#0052d9; }
+  .tag-withdraw { background:#fff2e8; color:#ff7d00; }
+  .tag-verified { background:#f0fff5; color:#07c160; }
+  .tag-pending { background:#fff7e8; color:#ff7d00; }
+  .tag-expired { background:#ffece8; color:#f53f3f; }
+  .section-title { font-size:15px; font-weight:600; color:#1f2329; margin:20px 0 12px; padding-left:8px; border-left:4px solid #07c160; }
+  .negative { color:#f53f3f !important; }
+</style>
+</head>
+<body>
+
+<h2>📊 余额查询</h2>
+
+<div class="card">
+  <select id="branchSelect" onchange="fetchBalance()">
+    <option value="">全部网点</option>
+    <option value="总部">总部</option>
+    <option value="上海分公司">上海分公司</option>
+    <option value="广州分公司">广州分公司</option>
+    <option value="深圳分公司">深圳分公司</option>
+  </select>
+  <div style="display:flex; gap:8px;">
+    <input type="date" id="startDate" placeholder="开始日期" style="flex:1;">
+    <input type="date" id="endDate" placeholder="结束日期" style="flex:1;">
+  </div>
+  <button class="btn" onclick="fetchBalance()">查询余额</button>
+</div>
+
+<div class="card hidden" id="balanceCard">
+  <div class="balance-hero">
+    <div class="label">可用余额（扣除待核销取款）</div>
+    <div class="value" id="hAvailable">¥0.00</div>
+    <div class="sub">净余额 - 待核销取款</div>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat-item deposit">
+      <div class="stat-label">累计已核销存款</div>
+      <div class="stat-value" id="hTotalDeposit">¥0</div>
+    </div>
+    <div class="stat-item withdraw">
+      <div class="stat-label">累计已核销取款</div>
+      <div class="stat-value" id="hTotalWithdraw">¥0</div>
+    </div>
+    <div class="stat-item pending">
+      <div class="stat-label">待核销取款</div>
+      <div class="stat-value" id="hPendingWithdraw">¥0</div>
+    </div>
+    <div class="stat-item pending">
+      <div class="stat-label">待核销存款</div>
+      <div class="stat-value" id="hPendingDeposit">¥0</div>
+    </div>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat-item">
+      <div class="stat-label">存款笔数</div>
+      <div class="stat-value" id="hDepositCount">0</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">取款笔数</div>
+      <div class="stat-value" id="hWithdrawCount">0</div>
+    </div>
+  </div>
+
+  <div style="background:#f7f8fa; border-radius:8px; padding:12px; margin-top:8px;">
+    <div class="table-row">
+      <span class="col-label">净余额（存款-取款）</span>
+      <span class="col-value" id="hNetBalance">¥0.00</span>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="section-title">最近10笔交易</div>
+  <div id="recentList">
+    <p style="text-align:center;color:#999;">请先查询余额</p>
+  </div>
+</div>
+
+<a href="/home.html" class="btn btn-secondary">返回首页</a>
+
+<script>
+  const API = location.origin;
+
+  async function fetchBalance() {
+    const branch = document.getElementById('branchSelect').value;
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+
+    let url = API + '/api/balance?';
+    if (branch) url += 'branch=' + encodeURIComponent(branch) + '&';
+    if (startDate) url += 'startDate=' + startDate + '&';
+    if (endDate) url += 'endDate=' + endDate + '&';
+
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.success) {
+        displayBalance(data);
+      } else {
+        alert('查询失败');
+      }
+    } catch (e) {
+      alert('网络错误：' + e.message);
+    }
+  }
+
+  function displayBalance(data) {
+    document.getElementById('balanceCard').classList.remove('hidden');
+    const b = data.balance;
+
+    const availEl = document.getElementById('hAvailable');
+    availEl.textContent = '¥' + b.availableBalance.toFixed(2);
+    availEl.className = 'value' + (b.availableBalance < 0 ? ' negative' : '');
+
+    document.getElementById('hTotalDeposit').textContent = '¥' + b.totalDeposited.toFixed(2);
+    document.getElementById('hTotalWithdraw').textContent = '¥' + b.totalWithdrawn.toFixed(2);
+    document.getElementById('hPendingWithdraw').textContent = '¥' + b.pendingWithdraw.toFixed(2);
+    document.getElementById('hPendingDeposit').textContent = '¥' + b.pendingDeposit.toFixed(2);
+    document.getElementById('hDepositCount').textContent = b.depositCount;
+    document.getElementById('hWithdrawCount').textContent = b.withdrawCount;
+
+    const netEl = document.getElementById('hNetBalance');
+    netEl.textContent = '¥' + b.netBalance.toFixed(2);
+    if (b.netBalance < 0) netEl.className = 'col-value negative';
+    else netEl.className = 'col-value';
+
+    const list = document.getElementById('recentList');
+    if (!data.recent || data.recent.length === 0) {
+      list.innerHTML = '<p style="text-align:center;color:#999;">暂无交易记录</p>';
+      return;
+    }
+    list.innerHTML = data.recent.map(r => {
+      const isDeposit = r.biz_type === 'deposit';
+      const tag = isDeposit ? 'tag-deposit' : 'tag-withdraw';
+      const typeLabel = isDeposit ? '存款' : '取款';
+      const statusTag = `tag-${r.status}`;
+      const statusLabel = {generated:'待打印',printed:'待核销',verified:'已核销',expired:'已过期',cancelled:'已作废'}[r.status] || r.status;
+      const time = (r.verify_time || r.submit_time || '').replace('T',' ').substring(0,16);
+      return `
+        <div class="table-row">
+          <div>
+            <span class="tag ${tag}">${typeLabel}</span>
+            <span style="margin-left:8px;font-size:13px;">${r.order_no}</span>
+            <span class="tag ${statusTag}" style="margin-left:4px;">${statusLabel}</span>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-weight:600;color:${isDeposit ? '#0052d9' : '#ff7d00'}">
+              ${isDeposit ? '+' : '-'}¥${r.amount}
+            </div>
+            <div style="font-size:11px;color:#86909c;">${r.counterparty_name || ''} · ${time}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+</script>
+</body>
+</html>
