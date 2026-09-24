@@ -1,0 +1,13 @@
+{
+  "name": "print-service",
+  "version": "1.0.0",
+  "description": "本地打印服务 - 多网点分布式打印",
+  "main": "print-service.js",
+  "scripts": {
+    "start": "node print-service.js"
+  },
+  "dependencies": {
+    "escpos": "^3.0.0",
+    "axios": "^1.6.0"
+  }
+}
