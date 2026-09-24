@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: withdrawal-system
+    runtime: node
+    plan: free
+    branch: main
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: QR_SECRET
+        value: Wt9xKm3pL7nQ2vR8sF4jY6bN1cZ0aE5d
+      - key: WEWORK_WEBHOOK
+        value: https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=placeholder
+      - key: MAX_AMOUNT
+        value: "1000000"
+      - key: EXPIRE_DAYS
+        value: "3"
