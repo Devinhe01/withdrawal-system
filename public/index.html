@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>扫码核销</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,sans-serif; max-width:500px; margin:0 auto; padding:20px; background:#f5f5f5; }
+  .card { background:white; border-radius:12px; padding:20px; margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+  h2 { color:#07c160; text-align:center; margin-bottom:16px; }
+  #reader { width:100%; border-radius:8px; overflow:hidden; }
+  .btn { display:block; width:100%; padding:14px; border:none; border-radius:8px; font-size:16px; cursor:pointer; margin-top:12px; }
+  .btn-primary { background:#07c160; color:white; }
+  .btn-bluetooth { background:#0052d9; color:white; }
+  .btn-secondary { background:#f0f0f0; }
+  .info-row { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #f0f0f0; }
+  .info-label { color:#999; }
+  .info-value { font-weight:600; }
+  .status-box { text-align:center; padding:40px 20px; }
+  .status-icon { font-size:48px; margin-bottom:12px; }
+  .hidden { display:none; }
+  input { width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; font-size:14px; margin-bottom:8px; }
+  .biz-badge { text-align:center; margin-bottom:12px; }
+  .biz-withdraw { color:#ff7d00; font-weight:bold; }
+  .biz-deposit { color:#0052d9; font-weight:bold; }
+  .security-info { background:#f9f0ff; border-radius:8px; padding:12px; margin-bottom:12px; }
+  .amount-box { text-align:center; background:#fff7e8; padding:16px; border-radius:8px; margin-bottom:12px; }
+  .amount-num { font-size:28px; font-weight:bold; color:#d92222; }
+  .amount-cn { font-size:13px; color:#666; }
+</style>
+</head>
+<body>
+
+<h2>📷 扫码核销</h2>
+
+<div class="card" id="userCard">
+  <input type="text" id="verifyName" placeholder="您的姓名">
+  <input type="text" id="verifyBranch" placeholder="您所在的网点">
+  <button class="btn btn-primary" onclick="saveUser()">确认核销人信息</button>
+</div>
+
+<div class="card hidden" id="scanCard">
+  <p style="text-align:center;color:#666;margin-bottom:12px;">点击下方按钮扫描凭证二维码</p>
+  <div id="reader"></div>
+  <button class="btn btn-primary" onclick="startScan()">开始扫码</button>
+  <button class="btn btn-secondary" onclick="manualInput()">手动输入单号</button>
+</div>
+
+<div class="card hidden" id="manualCard">
+  <input type="text" id="manualOrderNo" placeholder="输入取款/存款单号">
+  <button class="btn btn-primary" onclick="queryByOrderNo()">查询</button>
+</div>
+
+<div class="card hidden" id="orderCard">
+  <div class="biz-badge" id="bizBadge"></div>
+  <div class="security-info">
+    <div class="info-row"><span class="info-label">单号</span><span class="info-value" id="dOrderNo"></span></div>
+    <div class="info-row"><span class="info-label">提交人</span><span class="info-value" id="dSubmitter"></span></div>
+    <div class="info-row"><span class="info-label">提交时间</span><span class="info-value" id="dSubmitTime"></span></div>
+    <div class="info-row"><span class="info-label">签名验证</span><span class="info-value" style="color:#07c160;">✅ 通过</span></div>
+  </div>
+  <div class="amount-box">
+    <div style="font-size:13px;color:#666;">请核对金额</div>
+    <div class="amount-num" id="dAmount"></div>
+    <div class="amount-cn" id="dAmountCn"></div>
+  </div>
+  <div class="info-row"><span class="info-label">对方户名</span><span class="info-value" id="dPayee"></span></div>
+  <div class="info-row"><span class="info-label">手机号</span><span class="info-value" id="dMobile"></span></div>
+  <div class="info-row" id="accountRow"><span class="info-label">账号</span><span class="info-value" id="dAccount"></span></div>
+  <div class="info-row"><span class="info-label">用途</span><span class="info-value" id="dPurpose"></span></div>
+  <div class="info-row"><span class="info-label">网点</span><span class="info-value" id="dBranch"></span></div>
+  <div class="info-row"><span class="info-label">有效期至</span><span class="info-value" id="dExpire"></span></div>
+  <button class="btn btn-primary" onclick="confirmVerify()">确认核销</button>
+  <button class="btn btn-bluetooth" onclick="printReceipt()">🖨️ 蓝牙打印回执</button>
+</div>
+
+<div class="card hidden" id="resultCard">
+  <div class="status-box">
+    <div class="status-icon" id="rIcon"></div>
+    <h3 id="rTitle"></h3>
+    <p id="rMsg" style="color:#999;"></p>
+    <button class="btn btn-primary" onclick="reset()">继续核销下一单</button>
+  </div>
+</div>
+
+<script>
+  const API = location.origin;
+  let currentOrderNo = '';
+  let currentOrder = null;
+  let verifyUser = JSON.parse(localStorage.getItem('verifyUser') || '{}');
+  let html5Qrcode = null;
+
+  if (verifyUser.name && verifyUser.id && verifyUser.branch) {
+    document.getElementById('userCard').classList.add('hidden');
+    document.getElementById('scanCard').classList.remove('hidden');
+  }
+
+  function saveUser() {
+    verifyUser = {
+      name: document.getElementById('verifyName').value.trim(),
+      id: document.getElementById('verifyName').value.trim(),
+      branch: document.getElementById('verifyBranch').value.trim()
+    };
+    if (!verifyUser.name) { alert('请填写姓名'); return; }
+    localStorage.setItem('verifyUser', JSON.stringify(verifyUser));
+    document.getElementById('userCard').classList.add('hidden');
+    document.getElementById('scanCard').classList.remove('hidden');
+  }
+
+  function startScan() {
+    html5Qrcode = new Html5Qrcode('reader');
+    html5Qrcode.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: 250 },
+      (text) => { handleScanResult(text); },
+      () => {}
+    ).catch(err => alert('摄像头启动失败：' + err));
+  }
+
+  async function handleScanResult(qrContent) {
+    if (html5Qrcode) { try { await html5Qrcode.stop(); } catch {} }
+    await doVerify(qrContent);
+  }
+
+  async function doVerify(qrContent) {
+    const res = await fetch(API + '/api/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        qrContent,
+        verifyUser: verifyUser.name,
+        verifyUserName: verifyUser.name,
+        deviceInfo: navigator.userAgent
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      currentOrderNo = data.order.orderNo;
+      currentOrder = data.order;
+      showOrderInfo(data);
+    } else {
+      showResult('❌', '核销失败', data.msg);
+    }
+  }
+
+  function showOrderInfo(data) {
+    document.getElementById('scanCard').classList.add('hidden');
+    document.getElementById('manualCard').classList.add('hidden');
+    document.getElementById('orderCard').classList.remove('hidden');
+    const badge = document.getElementById('bizBadge');
+    badge.className = 'biz-badge biz-' + data.bizType;
+    badge.textContent = data.bizTypeLabel;
+    const o = data.order;
+    document.getElementById('dOrderNo').textContent = o.orderNo;
+    document.getElementById('dSubmitter').textContent = o.submitterName;
+    document.getElementById('dSubmitTime').textContent = o.submitTime;
+    document.getElementById('dAmount').textContent = '¥' + o.amount;
+    document.getElementById('dAmountCn').textContent = o.amountCn;
+    document.getElementById('dPayee').textContent = o.counterpartyName;
+    document.getElementById('dMobile').textContent = o.counterpartyMobile;
+    document.getElementById('dPurpose').textContent = o.purpose;
+    document.getElementById('dBranch').textContent = o.targetBranch;
+    document.getElementById('dExpire').textContent = o.expireDate;
+    if (o.counterpartyAccount) {
+      document.getElementById('dAccount').textContent = o.counterpartyAccount;
+      document.getElementById('accountRow').classList.remove('hidden');
+    } else {
+      document.getElementById('accountRow').classList.add('hidden');
+    }
+  }
+
+  async function confirmVerify() {
+    const res = await fetch(API + '/api/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        orderNo: currentOrderNo,
+        verifyUser: verifyUser.name,
+        verifyUserName: verifyUser.name,
+        verifyBranch: verifyUser.branch,
+        deviceInfo: navigator.userAgent
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showResult('✅', '核销成功', data.bizType === 'withdraw' ? '取款已完成' : '存款已入账');
+    } else {
+      showResult('❌', '核销失败', data.msg);
+    }
+  }
+
+  function manualInput() {
+    document.getElementById('scanCard').classList.add('hidden');
+    document.getElementById('manualCard').classList.remove('hidden');
+  }
+
+  async function queryByOrderNo() {
+    const orderNo = document.getElementById('manualOrderNo').value.trim();
+    if (!orderNo) { alert('请输入单号'); return; }
+    const res = await fetch(API + '/api/order/' + orderNo);
+    const data = await res.json();
+    if (data.success) {
+      const o = data.order;
+      currentOrderNo = o.order_no;
+      currentOrder = o;
+      const isWithdraw = o.biz_type === 'withdraw';
+      const mobile = o.counterparty_mobile || '';
+      const maskedMobile = mobile.length >= 7 ? mobile.slice(0,3) + '****' + mobile.slice(-4) : mobile;
+      showOrderInfo({
+        bizType: o.biz_type,
+        bizTypeLabel: isWithdraw ? '取款' : '存款',
+        order: {
+          orderNo: o.order_no, amount: o.amount, amountCn: o.amount_cn,
+          counterpartyName: o.counterparty_name, counterpartyMobile: maskedMobile,
+          counterpartyAccount: o.counterparty_account, purpose: o.purpose,
+          targetBranch: o.target_branch, expireDate: o.expire_date,
+          submitterName: o.submitter_name, submitTime: o.submit_time
+        }
+      });
+    } else {
+      showResult('❌', '查询失败', data.msg);
+    }
+  }
+
+  function printReceipt() {
+    alert('蓝牙打印功能：请连接蓝牙打印机后打印核销回执');
+  }
+
+  function showResult(icon, title, msg) {
+    document.querySelectorAll('.card').forEach(c => c.classList.add('hidden'));
+    document.getElementById('resultCard').classList.remove('hidden');
+    document.getElementById('rIcon').textContent = icon;
+    document.getElementById('rTitle').textContent = title;
+    document.getElementById('rMsg').textContent = msg;
+  }
+
+  function reset() {
+    document.querySelectorAll('.card').forEach(c => c.classList.add('hidden'));
+    document.getElementById('scanCard').classList.remove('hidden');
+  }
+</script>
+</body>
+</html>
